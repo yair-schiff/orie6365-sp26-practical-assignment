@@ -1,0 +1,12 @@
+name: orie6365
+channels:
+	- defaults
+	- conda-forge
+dependencies:
+	- python=3.12
+	- jupyter
+	- pip:
+		- numpy
+		- matplotlib
+		- scipy
+    - tqdm
