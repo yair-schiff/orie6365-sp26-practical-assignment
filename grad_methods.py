@@ -138,7 +138,13 @@ def fast_gradient_method(
     grad_norm_threshold: float = 1e-9,
     show_progress: bool = True,
 ) -> tuple[np.ndarray, dict[str, list], Literal["success", "max_iters_reached"]]:
-    """Fast gradient method."""
+    """Fast gradient method.
+    
+    Args:
+        (same as `gradient_method`)
+    Returns:
+        (same as `gradient_method`)
+    """
     mat_vec = 0
     x = x_0.copy()  # Ensure x_0 is not modified
     v = x_0.copy()
@@ -168,7 +174,7 @@ def fast_gradient_method(
         "success" if grad_norm < grad_norm_threshold else "max_iters_reached"
     )
     with tqdm(total=n_iters, leave=False, disable=not show_progress, position=1) as pbar:
-        for k in range(n_iters):
+        for _ in range(n_iters):
             if status == "success":
                 break
             if restart_period is not None and steps_since_restart >= restart_period:
@@ -245,6 +251,103 @@ def fast_gradient_method(
     return best_x, history, status
 
 
+def subgradient_method(
+    A: np.ndarray,
+    b: np.ndarray,
+    loss: Literal["quadratic", "logistic", "l1"],
+    R: float,
+    x_0: np.ndarray,
+    n_iters: int,
+    gamma: float,
+    normalized: bool = False,
+    show_progress: bool = True,
+) -> tuple[np.ndarray, dict[str, list], Literal["success", "max_iters_reached"]]:
+    """Subgradient method.
+    
+    Args:
+        A: data matrix
+        b: data vector
+        loss: loss function to minimize ("quadratic", "logistic", or "l1")
+        R: radius of the Euclidean ball to project onto at each iteration
+        x_0: initial point for the method
+        n_iters: number of iterations to run the method for 
+        gamma: constant step-size parameter
+        normalized: whether to use normalized subgradients
+        show_progress: whether to display a progress bar for this run
+    Returns:
+        x_sol: the best observed iterate by function value
+        history: a dictionary containing lists of values of interest at each iteration:
+            - history['func'] is the list of function values among all main iterates {x_k}, k≥0
+            - history['grad'] is the list of subgradient norms among all main iterates {x_k}, k≥0
+            - history['time'] is the list of time snapshots taken at the start of every iteration;
+            - history['mat_vec'] and history['mat vec'] are the list of total numbers of
+                matrix-vector products Ah and A^top h used up to each iteration
+                (cumulative statistics)
+        status: status information about the run of the method (e.g., whether it converged, etc.).
+    """
+    if R < 0:
+        raise ValueError("R must be non-negative")
+    if gamma < 0:
+        raise ValueError("gamma must be non-negative")
+    if n_iters < 0:
+        raise ValueError("n_iters must be non-negative")
+
+    mat_vec = 0
+    x = x_0.copy()  # Ensure x_0 is not modified
+    norm_x = np.linalg.norm(x).item()
+    if norm_x > R:
+        x = (R / norm_x) * x
+
+    loss_fn = LOSSES[loss](A, b)
+    start = time.perf_counter()
+
+    func = loss_fn(x)
+    mat_vec += loss_fn.fwd_mat_vec
+    grad = loss_fn.grad(x)
+    mat_vec += loss_fn.grad_mat_vec
+    grad_norm = np.linalg.norm(grad).item()
+    history = {
+        'func': [func],
+        'grad': [grad_norm],
+        'time': [0.],
+        'mat_vec': [mat_vec],
+    }
+    best_x = x.copy()
+    best_func = func
+    status: Literal["success", "max_iters_reached"] = "max_iters_reached"
+    with tqdm(total=n_iters, leave=False, disable=not show_progress, position=1) as pbar:
+        for _ in range(n_iters):
+            if normalized and grad_norm > 0:
+                direction = grad / grad_norm
+            else:
+                direction = grad
+            x = x - gamma * direction
+            # Projection onto Euclidean ball of radius R
+            norm_x = np.linalg.norm(x).item()
+            if norm_x > R:
+                x = (R / norm_x) * x
+            func = loss_fn(x)
+            mat_vec += loss_fn.fwd_mat_vec
+            
+            grad = loss_fn.grad(x)
+            mat_vec += loss_fn.grad_mat_vec
+            end = time.perf_counter()
+            grad_norm = np.linalg.norm(grad).item()
+            pbar.set_postfix({"func": func, "grad_norm": grad_norm})
+
+            # Update history
+            history['func'].append(func)
+            history['grad'].append(grad_norm)
+            history['time'].append(end - start)
+            history['mat_vec'].append(mat_vec)
+            if func < best_func:
+                best_func = func
+                best_x = x.copy()
+            pbar.update(1)
+
+    return best_x, history, status
+
+
 def true_optimal_value(
     A: np.ndarray,
     b: np.ndarray,
@@ -304,5 +407,33 @@ if __name__ == "__main__":
     plt.yscale("log")
     plt.show()
 
+
+    R = 1.
+    gamma = 1e-1
+    loss = "l1"
+    normalized = True
+    n_iters = 1000
+    plt.figure(figsize=(12, 5), tight_layout=True)
+    print("Running subgradient method...")
+    x_sol, history, status = subgradient_method(
+        A, b, loss, R=R, gamma=gamma, x_0=x0, n_iters=n_iters, normalized=normalized,
+    )
+    plt.subplot(1, 2, 1)
+    plt.plot(history['func'], label=f'Function value ({grad_method.__name__}): {history["func"][-1]:.4f}')
+    plt.subplot(1, 2, 2)
+    plt.plot(history['grad'], label=f'Gradient norm ({grad_method.__name__}): {history["grad"][-1]:.4e}')      
+    true_min = true_optimal_value(A, b, mu, x0, loss)
+    plt.subplot(1, 2, 1)
+    plt.axhline(true_min, color='red', linestyle='--', label=f'Optimal function value: {true_min:.4f}')
+    plt.title(f"Function value over iterations (Normalized = {normalized})")
+    plt.xlabel("Iteration")
+    plt.ylabel("Function value")
+    plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.title(f"(Sub)Gradient norm over iterations (Normalized = {normalized})")
+    plt.xlabel("Iteration")
+    plt.ylabel("(Sub)Gradient norm")
+    plt.yscale("log")
+    plt.show()
     print("x_sol:", x_sol)
     print("Final function value:", history['func'][-1])
