@@ -139,13 +139,16 @@ def fast_gradient_method(
     show_progress: bool = True,
 ) -> tuple[np.ndarray, dict[str, list], Literal["success", "max_iters_reached"]]:
     """Fast gradient method."""
-
     mat_vec = 0
     x = x_0.copy()  # Ensure x_0 is not modified
     v = x_0.copy()
     Ak = 0.
     L = L0
     loss_fn = LOSSES[loss](A, b, mu)
+    restart_period = None
+    if mu > 0:
+        restart_period = math.ceil(math.sqrt(8 * max(L, mu) / mu))
+    steps_since_restart = 0
     start = time.perf_counter()
 
     func = loss_fn(x)
@@ -165,9 +168,14 @@ def fast_gradient_method(
         "success" if grad_norm < grad_norm_threshold else "max_iters_reached"
     )
     with tqdm(total=n_iters, leave=False, disable=not show_progress, position=1) as pbar:
-        for _ in range(n_iters):
+        for k in range(n_iters):
             if status == "success":
                 break
+            if restart_period is not None and steps_since_restart >= restart_period:
+                Ak = 0.0
+                v = x.copy()
+                steps_since_restart = 0
+
             if adaptive:
                 L_trial = L
                 while True:
@@ -195,6 +203,8 @@ def fast_gradient_method(
                         Ak = Ak_new
                         func = func_new
                         L = L_trial * 0.5
+                        if restart_period is not None:
+                            restart_period = math.ceil(math.sqrt(8 * max(L, mu) / mu))
                         break
                     L_trial *= 2
             else:
@@ -209,6 +219,7 @@ def fast_gradient_method(
                 func = loss_fn(x)
                 mat_vec += loss_fn.fwd_mat_vec
 
+            steps_since_restart += 1
             grad_x = loss_fn.grad(x)
             mat_vec += loss_fn.grad_mat_vec
             end = time.perf_counter()
@@ -241,25 +252,32 @@ def true_optimal_value(
     x0: np.ndarray,
     loss: Literal["quadratic", "logistic", "l1"],
 ) -> float:
-    """Computes the true optimal value of the given loss function using `scipy.optimize.minimize`."""
+    """Compute a high-accuracy reference optimal value for plotting residuals."""
     loss_fn = {
         'quadratic': QuadraticLoss,
         'logistic': LogisticLoss,
         'l1': L1Loss,
      }[loss](A, b, mu)
-    result = minimize(fun=lambda x: loss_fn(x), x0=x0, method='L-BFGS-B')
+    jac = (lambda x: loss_fn.grad(x)) if loss in {'quadratic', 'logistic'} else None
+    result = minimize(
+        fun=lambda x: loss_fn(x),
+        jac=jac,
+        x0=x0,
+        method='L-BFGS-B',
+        options={'gtol': 1e-12, 'ftol': 1e-15, 'maxiter': 100_000},
+    )
     return result.fun
 
 
 if __name__ == "__main__":
     n = 10
     m = 1000
-    sigma = 1e6
+    sigma = 1e3
     A, b = generate_data(n, m, sigma)
     loss = "quadratic"  # "quadratic" or "logistic"
     x0 = np.zeros(n)
-    n_iters = 1000
-    mu = 1e-3
+    n_iters = 10_000
+    mu = 1e-2
     L0 = LOSSES[loss].lipschitz_estimate(A, mu)
     adaptive = True
     plt.figure(figsize=(12, 5), tight_layout=True)
