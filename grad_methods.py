@@ -52,7 +52,7 @@ def gradient_method(
             - history['func'] is the list of function values among all main iterates {x_k}, k≥0
             - history['grad'] is the list of gradient norms among all main iterates {x_k}, k≥0
             - history['time'] is the list of time snapshots taken at the start of every iteration;
-            - history['mat_vec'] and history['mat vec'] are the list of total numbers of
+            - history['mat_vec'] is the list of total numbers of
                 matrix-vector products Ah and A^top h used up to each iteration
                 (cumulative statistics)
         status: status information about the run of the method (e.g., whether it converged, etc.).
@@ -251,6 +251,20 @@ def fast_gradient_method(
     return best_x, history, status
 
 
+def subgrad_norm_bound(A: np.ndarray, b: np.ndarray, loss: str, R: float) -> float:
+    """Helper method to compute sub-grad norm bound to rescale constant step-size in un-normalized subgradient method."""
+    m = A.shape[0]
+    A_norm = np.linalg.norm(A, 2)
+
+    if loss in {"logistic", "l1"}:
+        return A_norm / np.sqrt(m)
+
+    if loss == "quadratic":
+        return A_norm * (A_norm * R + np.linalg.norm(b)) / m
+    
+    raise NotImplementedError(f"Subgradient norm bound not implemented for loss type {loss}.")
+
+
 def subgradient_method(
     A: np.ndarray,
     b: np.ndarray,
@@ -280,18 +294,11 @@ def subgradient_method(
             - history['func'] is the list of function values among all main iterates {x_k}, k≥0
             - history['grad'] is the list of subgradient norms among all main iterates {x_k}, k≥0
             - history['time'] is the list of time snapshots taken at the start of every iteration;
-            - history['mat_vec'] and history['mat vec'] are the list of total numbers of
+            - history['mat_vec'] is the list of total numbers of
                 matrix-vector products Ah and A^top h used up to each iteration
                 (cumulative statistics)
         status: status information about the run of the method (e.g., whether it converged, etc.).
     """
-    if R < 0:
-        raise ValueError("R must be non-negative")
-    if gamma < 0:
-        raise ValueError("gamma must be non-negative")
-    if n_iters < 0:
-        raise ValueError("n_iters must be non-negative")
-
     mat_vec = 0
     x = x_0.copy()  # Ensure x_0 is not modified
     norm_x = np.linalg.norm(x).item()
@@ -409,10 +416,13 @@ if __name__ == "__main__":
 
 
     R = 1.
-    gamma = 1e-1
     loss = "l1"
     normalized = True
     n_iters = 1000
+    gamma = R / math.sqrt(n_iters)
+    if not normalized:
+        gamma = gamma / subgrad_norm_bound(A, b, loss, R)
+
     plt.figure(figsize=(12, 5), tight_layout=True)
     print("Running subgradient method...")
     x_sol, history, status = subgradient_method(

@@ -30,5 +30,5 @@ This will run:
 
 
 ## TODOs:
-- Implement sub-gradient method and add experiment run to notebook
+- Add sub-gradient method experiment to notebook
 - Implement Newton's method and add experiment run to notebook
