@@ -136,3 +136,4 @@ Thumbs.db
 # Homework specific
 *.pyc
 .data_cache/
+figures/

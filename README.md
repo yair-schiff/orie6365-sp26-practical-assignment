@@ -1,4 +1,4 @@
-# ORIE 6365 Practial Assignment
+# ORIE 6365 Practical Assignment
 
 ## Environment setup
 
@@ -15,20 +15,16 @@ conda activate orie6365
 ```
 
 ## How to run
-Open the notebook [`experiments.ipynb`](./experiments.ipynb) and exectue all cells.
+Open the notebook [`experiments_report.ipynb`](./experiments_report.ipynb) and execute all cells.
 This will run:
-- gradient and fast-gradient experiments, without and with adaptive step sizes (Problems 4.1 and 4.2, respectively),
-- sub-gradient experiments (Problem 4.3),
-- Newton's method experiments (Problem 5.1). 
+- gradient and fast-gradient experiments, without and with adaptive step sizes;
+- subgradient experiments for quadratic, logistic, and l1 losses;
+- data-generation condition-number sanity checks;
+- plots used in the final report.
 
 ## Code overview
 
 - The data generation function is in [`data.py`](./data.py).
 - Losses (`quadratic`, `logistic`, `l1`) are implemented in [`loss.py`](./loss.py)
-- Gradient methods (vanilla, fast, sub-gradient) are impelemented in [`grad_methods.py`](./grad_methods.py)
-- The plotting routine that sweeps over experiment configs, runs the methods, and plots results is implemented in [`plotting.py`](./plotting.py)
-
-
-## TODOs:
-- Add sub-gradient method experiment to notebook
-- Implement Newton's method and add experiment run to notebook
+- Gradient methods (vanilla, fast, subgradient) are implemented in [`grad_methods.py`](./grad_methods.py).
+- Experiment sweeps and plotting code are in [`experiments_report.ipynb`](./experiments_report.ipynb).

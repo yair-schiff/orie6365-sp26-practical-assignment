@@ -85,21 +85,3 @@ def generate_data(
             print(f"Warning: failed to write cache to {cache_path}")
 
     return A, b
-
-
-if __name__ == "__main__":
-    n = 3
-    m = 10
-    sigma = 1e2
-    A, b = generate_data(n, m, sigma)
-    print("A:", A.shape, A)
-    print("b:", b.shape, b)
-
-    # Suggested validation test: for full-column-rank A, cond(A^T A) should match sigma.
-    B = A.T @ A
-    eigvals = np.linalg.eigvalsh(B)
-    cond_B = eigvals.max() / eigvals.min()
-    print("cond(A^T A):", cond_B)
-    assert np.isclose(cond_B, sigma, rtol=1e-6, atol=1e-6), (
-        f"Expected cond(A^T A) ≈ {sigma}, got {cond_B}"
-    )

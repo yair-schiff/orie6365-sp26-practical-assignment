@@ -3,11 +3,8 @@ import time
 from typing import Literal
 
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.optimize import minimize
 from tqdm.auto import tqdm
 
-from data import generate_data
 from loss import QuadraticLoss, LogisticLoss, L1Loss
 
 
@@ -353,97 +350,3 @@ def subgradient_method(
             pbar.update(1)
 
     return best_x, history, status
-
-
-def true_optimal_value(
-    A: np.ndarray,
-    b: np.ndarray,
-    mu: float,
-    x0: np.ndarray,
-    loss: Literal["quadratic", "logistic", "l1"],
-) -> float:
-    """Compute a high-accuracy reference optimal value for plotting residuals."""
-    loss_fn = {
-        'quadratic': QuadraticLoss,
-        'logistic': LogisticLoss,
-        'l1': L1Loss,
-     }[loss](A, b, mu)
-    jac = (lambda x: loss_fn.grad(x)) if loss in {'quadratic', 'logistic'} else None
-    result = minimize(
-        fun=lambda x: loss_fn(x),
-        jac=jac,
-        x0=x0,
-        method='L-BFGS-B',
-        options={'gtol': 1e-12, 'ftol': 1e-15, 'maxiter': 100_000},
-    )
-    return result.fun
-
-
-if __name__ == "__main__":
-    n = 10
-    m = 1000
-    sigma = 1e3
-    A, b = generate_data(n, m, sigma)
-    loss = "quadratic"  # "quadratic" or "logistic"
-    x0 = np.zeros(n)
-    n_iters = 10_000
-    mu = 1e-2
-    L0 = LOSSES[loss].lipschitz_estimate(A, mu)
-    adaptive = True
-    plt.figure(figsize=(12, 5), tight_layout=True)
-    for grad_method in [gradient_method, fast_gradient_method]:
-        print(f"Running {grad_method.__name__}...")
-        x_sol, history, status = grad_method(
-            A, b, loss, mu=mu, x_0=x0, n_iters=n_iters, L0=L0, adaptive=adaptive
-        )
-        plt.subplot(1, 2, 1)
-        plt.plot(history['func'], label=f'Function value ({grad_method.__name__}): {history["func"][-1]:.4f}')
-        plt.subplot(1, 2, 2)
-        plt.plot(history['grad'], label=f'Gradient norm ({grad_method.__name__}): {history["grad"][-1]:.4e}')      
-    true_min = true_optimal_value(A, b, mu, x0, loss)
-    plt.subplot(1, 2, 1)
-    plt.axhline(true_min, color='red', linestyle='--', label=f'Optimal function value: {true_min:.4f}')
-    plt.title(f"Function value over iterations (Adaptive = {adaptive})")
-    plt.xlabel("Iteration")
-    plt.ylabel("Function value")
-    plt.legend()
-    plt.subplot(1, 2, 2)
-    plt.title(f"Gradient norm over iterations (Adaptive = {adaptive})")
-    plt.xlabel("Iteration")
-    plt.ylabel("Gradient norm")
-    plt.yscale("log")
-    plt.show()
-
-
-    R = 1.
-    loss = "l1"
-    normalized = True
-    n_iters = 1000
-    gamma = R / math.sqrt(n_iters)
-    if not normalized:
-        gamma = gamma / subgrad_norm_bound(A, b, loss, R)
-
-    plt.figure(figsize=(12, 5), tight_layout=True)
-    print("Running subgradient method...")
-    x_sol, history, status = subgradient_method(
-        A, b, loss, R=R, gamma=gamma, x_0=x0, n_iters=n_iters, normalized=normalized,
-    )
-    plt.subplot(1, 2, 1)
-    plt.plot(history['func'], label=f'Function value ({grad_method.__name__}): {history["func"][-1]:.4f}')
-    plt.subplot(1, 2, 2)
-    plt.plot(history['grad'], label=f'Gradient norm ({grad_method.__name__}): {history["grad"][-1]:.4e}')      
-    true_min = true_optimal_value(A, b, mu, x0, loss)
-    plt.subplot(1, 2, 1)
-    plt.axhline(true_min, color='red', linestyle='--', label=f'Optimal function value: {true_min:.4f}')
-    plt.title(f"Function value over iterations (Normalized = {normalized})")
-    plt.xlabel("Iteration")
-    plt.ylabel("Function value")
-    plt.legend()
-    plt.subplot(1, 2, 2)
-    plt.title(f"(Sub)Gradient norm over iterations (Normalized = {normalized})")
-    plt.xlabel("Iteration")
-    plt.ylabel("(Sub)Gradient norm")
-    plt.yscale("log")
-    plt.show()
-    print("x_sol:", x_sol)
-    print("Final function value:", history['func'][-1])
