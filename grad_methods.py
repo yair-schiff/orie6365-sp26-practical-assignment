@@ -24,7 +24,7 @@ def gradient_method(
     n_iters: int,
     L0: float,
     adaptive: bool = False,
-    grad_norm_threshold: float = 1e-9,
+    grad_norm_threshold: float = 1e-8,
     show_progress: bool = True,
 ) -> tuple[np.ndarray, dict[str, list], Literal["success", "max_iters_reached"]]:
     """Gradient method.
@@ -132,7 +132,7 @@ def fast_gradient_method(
     n_iters: int,
     L0: float,
     adaptive: bool = False,
-    grad_norm_threshold: float = 1e-9,
+    grad_norm_threshold: float = 1e-8,
     show_progress: bool = True,
 ) -> tuple[np.ndarray, dict[str, list], Literal["success", "max_iters_reached"]]:
     """Fast gradient method.
